@@ -32,6 +32,7 @@ namespace SimpleProceduralTerrainProject
         public int m_alphaMapSize = 1024; //This is the control map that controls how the splat textures will be blended
         public int m_terrainSize = 2048;
         public int m_terrainHeight = 512;
+        public int m_terrainAltitude = 0;
         public int m_detailMapSize = 512; //Resolutions of detail (Grass) layers
 
         //Tree settings
@@ -71,6 +72,8 @@ namespace SimpleProceduralTerrainProject
             m_alphaMapSize = Mathf.ClosestPowerOfTwo(m_alphaMapSize);
             m_detailMapSize = Mathf.ClosestPowerOfTwo(m_detailMapSize);
 
+            m_terrainAltitude = Mathf.Clamp(m_terrainAltitude, 0, m_terrainHeight);
+
             if (m_detailResolutionPerPatch < 8)
                 m_detailResolutionPerPatch = 8;
 
@@ -99,7 +102,7 @@ namespace SimpleProceduralTerrainProject
                     terrainData.detailPrototypes = m_detailProtoTypes;
 
                     FillAlphaMap(terrainData);
-
+                  
                     m_terrain[x, z] = Terrain.CreateTerrainGameObject(terrainData).GetComponent<Terrain>();
                     m_terrain[x, z].transform.position = new Vector3(m_terrainSize * x + m_offset.x, 0, m_terrainSize * z + m_offset.y);
                     m_terrain[x, z].heightmapPixelError = m_pixelMapError;
@@ -108,7 +111,6 @@ namespace SimpleProceduralTerrainProject
 
                     FillTreeInstances(m_terrain[x, z], x, z);
                     FillDetailMap(m_terrain[x, z], x, z);
-
                 }
             }
 
@@ -183,7 +185,8 @@ namespace SimpleProceduralTerrainProject
 
         void FillHeights(float[,] htmap, int tileX, int tileZ)
         {
-            float ratio = (float)m_terrainSize / (float)m_heightMapSize;
+            float ratio = m_terrainSize * 1.0f / m_heightMapSize;
+            float relativeHeight = m_terrainAltitude / m_terrainHeight;
 
             for (int x = 0; x < m_heightMapSize; x++)
             {
@@ -192,7 +195,8 @@ namespace SimpleProceduralTerrainProject
                     float worldPosX = (x + tileX * (m_heightMapSize - 1)) * ratio;
                     float worldPosZ = (z + tileZ * (m_heightMapSize - 1)) * ratio;
 
-                    htmap[z, x] = m_groundNoise.Amplitude + m_groundNoise.Sample2D(worldPosX, worldPosZ);
+                    float value = m_groundNoise.Amplitude + m_groundNoise.Sample2D(worldPosX, worldPosZ);
+                    htmap[z, x] = Mathf.Clamp01(relativeHeight + value);                  
                 }
             }
         }
@@ -230,13 +234,12 @@ namespace SimpleProceduralTerrainProject
         {
             Random.InitState(0);
 
+            float unit = 1.0f / (m_terrainSize - 1);
+
             for (int x = 0; x < m_terrainSize; x += m_treeSpacing)
             {
                 for (int z = 0; z < m_terrainSize; z += m_treeSpacing)
                 {
-
-                    float unit = 1.0f / (m_terrainSize - 1);
-
                     float offsetX = Random.value * unit * m_treeSpacing;
                     float offsetZ = Random.value * unit * m_treeSpacing;
 
@@ -285,12 +288,13 @@ namespace SimpleProceduralTerrainProject
 
         void FillDetailMap(Terrain terrain, int tileX, int tileZ)
         {
+
             //each layer is drawn separately so if you have a lot of layers your draw calls will increase 
             int[,] detailMap0 = new int[m_detailMapSize, m_detailMapSize];
             int[,] detailMap1 = new int[m_detailMapSize, m_detailMapSize];
             int[,] detailMap2 = new int[m_detailMapSize, m_detailMapSize];
 
-            float ratio = (float)m_terrainSize / (float)m_detailMapSize;
+            float ratio = m_terrainSize*1.0f / m_detailMapSize;
 
             Random.InitState(0);
 
